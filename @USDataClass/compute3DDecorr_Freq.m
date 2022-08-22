@@ -74,12 +74,11 @@ function compute3DDecorr_Freq( obj )
         B2ValidIBS = B2(validRange,validAz,validEl);
         BMean=mean(B2ValidIBS(:));
         R01 = (obj.autocorr01(:,:,:,currVolume)).^2;
-        tau = 10^3/(obj.interFrameTime);
+        tau = 10^3*(obj.interFrameTime);
         
         obj.decorr(:,:,:,currVolume) = 2*(B2-R01)./(B2 + BMean)/tau;
         
     end
-  display('test')  
     
 end
 

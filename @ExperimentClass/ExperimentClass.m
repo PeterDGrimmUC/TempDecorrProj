@@ -185,10 +185,9 @@ classdef ExperimentClass < handle
             %        thissigma: value of sigma for gaussian window (mm)
             %     outputs:
             %        None
-            %obj.cartScalingFactor = thiscartScalingFactor;
             obj.voxelStepCart = voxelStepCart;
-            %obj.interFrameTime = thisinterFrameTime; 
             obj.frameRate = thisFrameRate;
+            obj.interFrameTime= 1/thisFrameRate;
             obj.thetamin = thisthetamin;
             obj.thetamax = thisthetamax;
             obj.phimin = thisphimin;
@@ -256,13 +255,13 @@ classdef ExperimentClass < handle
             %        None
             
             % check for new data set
-            nextDataSet = obj.getNextDataSetFolder_c();
             % If not yet arrived, keep checking in a loop
-            while isempty(nextDataSet)
+            while true
                 nextDataSet = obj.getNextDataSetFolder_c();
+                if ~isempty(nextDataSet)
+                    break;
+                end
             end
-            % Check that all files have been transferred
-            while(~ExperimentClass.verifyFilesReadyNew(nextDataSet)); end
             % Get path
             dataFolderPath = fullfile(obj.dataFolder,nextDataSet.name);
             % Get data from file
@@ -308,10 +307,10 @@ classdef ExperimentClass < handle
                 obj.phimax = pi/360*obj.phiRange;
                 obj.phimin = -obj.phimax;
             catch
-                disp('Could not read additional info file!');
+                disp('Could not read additional info file! Enter information manually');
             end
             % create USDataClass objet
-            outDataSet = USDataClass(Dm.data,Dm.startTime, Dm.Info,obj.rmin,obj.rmax,obj.thetamin,obj.thetamax,obj.phimin,obj.phimax,obj.voxelStepCart,obj.sigma,obj.frameRate);
+            outDataSet = USDataClass(Dm.data,Dm.startTime, Dm.Info,obj.rmin,obj.rmax,obj.thetamin,obj.thetamax,obj.phimin,obj.phimax,obj.voxelStepCart,obj.sigma,obj.interFrameTime);
             if obj.IBSGeoSet
                 outDataSet.setIBSParam(obj.IBSrMin,obj.IBSrMax, obj.IBSAzMin,obj.IBSAzMax,obj.IBSElMin,obj.IBSElMax);
             end
@@ -336,66 +335,7 @@ classdef ExperimentClass < handle
             obj.ROIMap = logical(finalGrid); 
             obj.ROIVoxelNum = sum(obj.ROIMap(:)); 
             obj.initDataSet.ROIMap = obj.ROIMap;
-            %obj.initDataSet.compute3DDecorr_ROI();
             obj.initDataSet.compute3DDecorr_Freq();
-        end
-
-        function returnVal = addNextRawDataSet_old(obj)
-            % addNextRawData_set_c: Use the c program to add the next data set in the target folder to the object
-            %
-            % Checks form, adds and processes the next data set (chronologically) to the object. Uses USDataClass built in methods to handle processing, as well as the ROI defined in the ExperimentClass object. 
-            %
-            % Usage:
-            %   returnVal = addNextRawDataSet_c(obj)
-            %             inputs:
-            %                None
-            %             outputs:
-            %                None
-            
-            nextDataSet = obj.getNextDataSetFolder();
-            if obj.numDataSets == []
-                obj.numDataSets = 1; 
-            end
-            if(~isempty(nextDataSet))
-                
-                while(~ExperimentClass.verifyFilesReadyNew(nextDataSet)); end
-                dataFolderPath = fullfile(obj.dataFolder,nextDataSet.name);
-                %defineGridBounds(obj)
-                
-                dataObj = obj.parseDataFromDir_c(fullfile(dataFolderPath,obj.defaultDataFileName));
-                dataObj.folderName = dataFolderPath;
-                %toc
-                newPath = fullfile(obj.dataFolder,'Complete',nextDataSet.name);
-                fclose all;
-                movefile(dataFolderPath,newPath);
-                %tic
-                dataObj.scanConv_apply_c(obj.scanConvLookup);
-                dataObj.ROIMap = obj.ROIMap;
-                dataObj.compute3DDecorr_Freq(); 
-                dataObj.decorrThresh = obj.decorrThresh;
-                if(isempty(obj.cumulativeDecorr))
-                    %obj.cumulativeDecorr = (dataObj.decorr - obj.initDataSet.decorr)./(1-obj.initDataSet.decorr);
-                    obj.cumulativeDecorr = dataObj.decorr;
-                    obj.cumulativeDecorrROI = obj.cumulativeDecorr.*obj.ROIMap;
-                    obj.decorrAverageSeries(obj.numDataSets) = sum(obj.cumulativeDecorr(:))/numel(obj.cumulativeDecorr(:));
-                    obj.decorrAverageSeriesROI(obj.numDataSets) = sum(obj.cumulativeDecorrROI(:))/sum(obj.ROIMap(:));
-                else
-                    %obj.cumulativeDecorr = max(obj.cumulativeDecorr,(dataObj.decorr - obj.initDataSet.decorr)./(1-obj.initDataSet.decorr));
-                    obj.cumulativeDecorr = max(obj.cumulativeDecorr,(dataObj.decorr));
-                    obj.cumulativeDecorrROI = max(obj.cumulativeDecorrROI,obj.cumulativeDecorr.*obj.ROIMap);
-                    obj.decorrAverageSeries(obj.numDataSets) = sum(obj.cumulativeDecorr(:))/numel(obj.cumulativeDecorr(:));
-                    obj.decorrAverageSeriesROI(obj.numDataSets) = sum(obj.cumulativeDecorrROI(:))/sum(obj.ROIMap(:));
-                end
-                if(isempty(obj.ultrasoundDataSeries))
-                    obj.ultrasoundDataSeries = dataObj;
-                else
-                    obj.ultrasoundDataSeries = [obj.ultrasoundDataSeries,dataObj]; 
-                end
-                obj.numDataSets = obj.numDataSets +1;
-                returnVal = 1;
-            else
-                returnVal = -1;  
-            end
         end
        function returnVal = addNextShamDataSet_c(obj)
             % addNextRawData_set_c: Use the c program to add the next data set in the target folder to the object
@@ -409,14 +349,12 @@ classdef ExperimentClass < handle
             %             outputs:
             %                None
             
-            nextDataSet = obj.getNextDataSetFolder();
+            nextDataSet = obj.getNextDataSetFolder_c();
             if obj.numShamDataSets == []
                 obj.numShamDataSets = 1; 
             end
             if(~isempty(nextDataSet))
-                %pause(3)
                 dataFolderPath = fullfile(obj.dataFolder,nextDataSet.name);
-                while(~ExperimentClass.verifyFilesReadyNew(nextDataSet)); end
                 dataObj = obj.parseDataFromDir_c(fullfile(dataFolderPath,obj.defaultDataFileName));
                 dataObj.folderName = dataFolderPath;
                 fclose all;
@@ -427,14 +365,8 @@ classdef ExperimentClass < handle
                 dataObj.decorrThresh = obj.decorrThresh;
                 if(isempty(obj.cumulativeShamDecorr))
                     obj.cumulativeShamDecorr = dataObj.decorr;
-                    %obj.cumulativeShamDecorrROI = obj.cumulativeShamDecorr.*obj.ROIMap;
-                    %obj.decorrAverageSeries(obj.numDataSets) = sum(obj.cumulativeDecorr(:))/numel(obj.cumulativeDecorr(:));
-                    %obj.decorrAverageSeriesROI(obj.numDataSets) = sum(obj.cumulativeDecorrROI(:))/sum(obj.ROIMap(:));
                 else
                     obj.cumulativeShamDecorr = max(obj.cumulativeShamDecorr,(dataObj.decorr));
-                    %obj.cumulativeShamDecorrROI = max(obj.cumulativeShamDecorrROI,obj.cumulativeDecorr.*obj.ROIMap);
-                    %obj.decorrAverageSeries(obj.numDataSets) = sum(obj.cumulativeDecorr(:))/numel(obj.cumulativeDecorr(:));
-                    %obj.decorrAverageSeriesROI(obj.numDataSets) = sum(obj.cumulativeDecorrROI(:))/sum(obj.ROIMap(:));
                 end
                 if(isempty(obj.ultrasoundShamDataSeries))
                     obj.ultrasoundShamDataSeries = dataObj;
@@ -459,36 +391,26 @@ classdef ExperimentClass < handle
             %             outputs:
             %                None
             
-            nextDataSet = obj.getNextDataSetFolder();
-            if obj.numDataSets == []
+            nextDataSet = obj.getNextDataSetFolder_c();
+            if isempty(obj.numDataSets)
                 obj.numDataSets = 1; 
             end
             if(~isempty(nextDataSet))
-                
                 dataFolderPath = fullfile(obj.dataFolder,nextDataSet.name);
-                while(~ExperimentClass.verifyFilesReadyNew(nextDataSet)); end
                 dataObj = obj.parseDataFromDir_c(fullfile(dataFolderPath,obj.defaultDataFileName));
                 dataObj.folderName = dataFolderPath;
-                
-                
                 fclose all;
                 obj.fileLUT{end+1}=nextDataSet.name;
-                %movefile(dataFolderPath,newPath);
-                %tic
                 dataObj.scanConv_apply_c(obj.scanConvLookup);
                 dataObj.ROIMap = obj.ROIMap;
-                %dataObj.compute3DDecorr_ROI(); 
                 dataObj.compute3DDecorr_Freq(); 
-                %toc
                 dataObj.decorrThresh = obj.decorrThresh;
                 if(isempty(obj.cumulativeDecorr))
-                    %obj.cumulativeDecorr = (dataObj.decorr - obj.initDataSet.decorr)./(1-obj.initDataSet.decorr);
                     obj.cumulativeDecorr = dataObj.decorr;
                     obj.cumulativeDecorrROI = obj.cumulativeDecorr.*obj.ROIMap;
                     obj.decorrAverageSeries(obj.numDataSets) = sum(obj.cumulativeDecorr(:))/numel(obj.cumulativeDecorr(:));
                     obj.decorrAverageSeriesROI(obj.numDataSets) = sum(obj.cumulativeDecorrROI(:))/sum(obj.ROIMap(:));
                 else
-                    %obj.cumulativeDecorr = max(obj.cumulativeDecorr,(dataObj.decorr - obj.initDataSet.decorr)./(1-obj.initDataSet.decorr));
                     obj.cumulativeDecorr = max(obj.cumulativeDecorr,(dataObj.decorr));
                     obj.cumulativeDecorrROI = max(obj.cumulativeDecorrROI,obj.cumulativeDecorr.*obj.ROIMap);
                     obj.decorrAverageSeries(obj.numDataSets) = sum(obj.cumulativeDecorr(:))/numel(obj.cumulativeDecorr(:));
@@ -516,13 +438,11 @@ classdef ExperimentClass < handle
             %                None
             %             outputs:
             %                None
-            
-            nextDataSet = obj.getNextDataSetFolder();
-            if obj.numDataSets == []
-                obj.numDataSets = 1; 
+            nextDataSet = obj.getNextDataSetFolder_c();
+            if isempty(obj.numShamDataSets)
+                obj.numShamDataSets = 1; 
             end
             if(~isempty(nextDataSet))
-                while(~ExperimentClass.verifyFilesReadyNew(nextDataSet)); end
                 dataFolderPath = fullfile(obj.dataFolder,nextDataSet.name);
                 dataObj = obj.parseDataFromDir_c(fullfile(dataFolderPath,obj.defaultDataFileName));
                 dataObj.folderName = dataFolderPath;
@@ -534,7 +454,7 @@ classdef ExperimentClass < handle
                 
                 dataObj.compute3DDecorr_Freq(); 
                 dataObj.decorrThresh = obj.decorrThresh;
-                tau=1/obj.frameRate;
+                tau=10^3/obj.frameRate;
                 if(isempty(obj.cumulativeDecorr))
                     obj.cumulativeDecorr = (dataObj.decorr - obj.cumulativeShamDecorr)./(1/tau-obj.cumulativeShamDecorr);
                     obj.cumulativeDecorr(obj.cumulativeDecorr <0)=realmin;
@@ -542,7 +462,6 @@ classdef ExperimentClass < handle
                     obj.decorrAverageSeries(obj.numDataSets) = sum(obj.cumulativeDecorr(:))/numel(obj.cumulativeDecorr(:));
                     obj.decorrAverageSeriesROI(obj.numDataSets) = sum(obj.cumulativeDecorrROI(:))/sum(obj.ROIMap(:));
                 else
-                    
                     obj.cumulativeDecorr = max(obj.cumulativeDecorr,(dataObj.decorr - obj.cumulativeShamDecorr)./(1/tau-obj.cumulativeShamDecorr));
                     obj.cumulativeDecorr(obj.cumulativeDecorr <0)=realmin;
                     obj.cumulativeDecorrROI = max(obj.cumulativeDecorrROI,obj.cumulativeDecorr.*obj.ROIMap);
@@ -560,34 +479,6 @@ classdef ExperimentClass < handle
                 returnVal = -1;  
             end
         end
-        function nextDataSetFolder = getNextDataSetFolder(obj)
-            % getNextDataSetFolder: Checks the target directory for the next data set 
-            %
-            % Checks the directory for unprocessed data sets, returns the location of the next valid data set folder
-            %
-            % Usage:
-            %   nextDataSetFolder = getNextDataSetFolder(obj)
-            %                     inputs:
-            %                        None
-            %                     outputs:
-            %                        nextDataSetFolder: Path of next target directory
-            % getNextDataSetFolder
-            % gets next (chronologically) data set inside of the target
-            % folder. 
-            % Returns a dir struct of next data set folder
-            dataSetsReady = obj.getWaitingDataSets();
-            timeCells = arrayfun(@(x) regexp(x.name,'\d+','match'),dataSetsReady,'UniformOutput',false);
-            dateTimeArr = cellfun(@(y) posixtime(datetime(str2num(y{3}),str2num(y{1}),str2num(y{2}),str2num(y{4}),str2num(y{5}),str2num(y{6}),str2num(y{7}))),timeCells,'UniformOutput',false);
-            dateTimeArr = [dateTimeArr{:}];
-            if(~isempty(dataSetsReady))
-                [~,minInd] = min(dateTimeArr);
-                nextDataSetFolder = dataSetsReady(minInd);
-                disp('New data folder found! ');
-            else
-                nextDataSetFolder = [];
-            end
-        end
-        
         function nextDataSetFolder = getNextDataSetFolder_c(obj)
             % getNextDataSetFolder_c: checks the target directory for the next data set
             %
@@ -610,31 +501,12 @@ classdef ExperimentClass < handle
             if(~isempty(dataSetsReady))
                 [~,minInd] = min(dateTimeArr);
                 nextDataSetFolder = dataSetsReady(minInd);
+                while(~obj.verifyFilesReady(nextDataSetFolder)); end
             else
                 nextDataSetFolder = [];
             end
         end
         
-        function dataSetList = getWaitingDataSets_old(obj)
-            % getWaitingDataSets: Returns a list of unprocessed data sets
-            %
-            % List is used to determine which data set will be processed next by other functions
-            %
-            % Usage:
-            %   dataSetList = getWaitingDataSets(obj)
-            %               inputs:
-            %                  None
-            %               outputs:
-            %                  None     
-            folderDir = dir(obj.dataFolder);
-            folderDir = folderDir([folderDir.isdir]);
-            invalidFolders = {'.','..','Complete','ready'};
-            binOut = ones(1,numel(folderDir));
-            for invalidFoldN = 1:numel(invalidFolders)
-                binOut = ~arrayfun(@(x) strcmp(x.name,invalidFolders(invalidFoldN)),folderDir)' & binOut;
-            end
-            dataSetList = folderDir(binOut); 
-        end
         function dataSetList = getWaitingDataSets(obj)
             % getWaitingDataSets: Returns a list of unprocessed data sets
             %
@@ -656,7 +528,7 @@ classdef ExperimentClass < handle
             dataSetList = folderDir(binOut); 
         end
         
-        function obj = addNextDataSetViaFilename2(obj, thisFileName) 
+        function obj = addNextDataSetViaFilename(obj, thisFileName) 
             % addNextDataSetViaFilename2: Adds next data set to object
             % given a filename
             %
@@ -682,7 +554,7 @@ classdef ExperimentClass < handle
                 obj.phimax = pi/360*obj.phiRange;
                 obj.phimin = -obj.phimax;
             catch
-                display('Could not read additional info file');
+                disp('Could not read additional info file');
             end
             tempDataSet = USDataClass(Dm.data,Dm.startTime, Dm.Info,obj.rmin,obj.rmax,obj.thetamin,obj.thetamax,obj.phimin,obj.phimax,obj.voxelStepCart,obj.sigma,obj.interFrameTime);
             tempDataSet.scanConv_Frust();
@@ -697,85 +569,6 @@ classdef ExperimentClass < handle
             end
             obj.decorrSumSeries(obj.numVolumes) = sum(obj.cumulativeDecorr(:)/numel(obj.cumlativeDecorr));
             obj.ultrasoundDataSeries = [obj.ultrasoundDataSeries tempDataSet];
-        end
-        
-        function obj = addNextDataSetViaFilename(obj, thisFileName)
-            % addNextDataSetViaFilename: Adds next data set to object
-            % given a filename
-            %
-            % Function to be called by another function which provides the
-            % target filename. 
-            %
-            % Usage:
-            %   obj = addNextDataSetViaFilename2(obj, thisFileName)
-            %       inputs:
-            %         thisFileName: The filename to extract data from.
-            %         Should be a pcmr file
-            %       outputs:
-            %         Obj: Updated object
-            Dm = read_lbdump(thisFileName);
-            obj.rmin = 0;
-            obj.rmax = (1/Dm.Info.NumSamplesPerMm)* Dm.Info.NumRangeSamples;
-            try 
-                obj.frameRate = Dm.Info.framerate;
-                obj.phiRange = Dm.Info.phiRange;
-                obj.thetaRange = Dm.Info.thetaRange;
-                obj.thetamax = pi/360*obj.thetaRange;
-                obj.thetamin = -obj.thetamax;
-                obj.phimax = pi/360*obj.phiRange;
-                obj.phimin = -obj.phimax;
-            catch
-                display('Could not read additional info file')
-            end
-            tempDataSet = USDataClass(Dm.data,Dm.startTime, Dm.Info,obj.rmin,obj.rmax,obj.thetamin,obj.thetamax,obj.phimin,obj.phimax,obj.voxelStepCart,obj.sigma,obj.interFrameTime);
-            tempDataSet.scanConv_Frust();
-            tempDataSet.compute3DDecorr(); 
-            tempDataSet.decorrThresh = obj.decorrThresh;
-            % compute ablated volume
-            
-            if(isempty(obj.cumulativeDecorr))
-                % set initial cumulative decorrelation to the result of the
-                % first volume's decorr
-                obj.cumulativeDecorr(1).decorr = tempDataSet.decorr; 
-                % compute decorrelation sum 
-                sizeOfVol = size(tempDataSet.decorr);
-                obj.decorrSumSeries = sum(obj.cumulativeDecorr(1).decorr(:))/prod(sizeOfVol(1:3)); 
-                % create mask of pixels which exceed the threshold
-                obj.decorrelationMapSeries(1).decorrMap = tempDataSet.decorr;
-                % remove elements below the threshold
-                tempAblatedPoints = find(obj.decorrelationMapSeries(1).decorrMap >= obj.decorrThresh);
-                obj.decorrelationMapSeries(1).decorrMap(tempAblatedPoints) = 1;
-                %set elements above threshold to 1
-                obj.decorrelationMapSeries(1).decorrMap(find(obj.decorrelationMapSeries(1).decorrMap ~= 1)) = 0;   
-                % each point above the threshold has a volume of dx^3, so
-                % the number of points * dx^3 gives the volume of ablated
-                % tissue
-                obj.averageDecorr(1) = log10(mean(obj.cumulativeDecorr(1).decorr(:)));
-                obj.decorrVolume(1) = .001*(length(tempAblatedPoints))*tempDataSet.dx^3; 
-            else
-                % find max value between current decorrelation and previous
-                % cumulative decorrelation 
-                obj.cumulativeDecorr(obj.numVolumes).decorr = max(obj.cumulativeDecorr(obj.numVolumes-1).decorr,tempDataSet.decorr);
-                % compute sum 
-                sizeOfVol = size(tempDataSet.decorr);
-                obj.decorrSumSeries(obj.numVolumes) = sum(obj.cumulativeDecorr(obj.numVolumes).decorr(:))/prod(sizeOfVol(1:3)); 
-                % create decorrelation map for current volume 
-                obj.decorrelationMapSeries(obj.numVolumes).decorrMap = obj.cumulativeDecorr(obj.numVolumes).decorr;
-                tempAblatedPoints = find(obj.decorrelationMapSeries(obj.numVolumes).decorrMap >= obj.decorrThresh);
-                obj.decorrelationMapSeries(obj.numVolumes).decorrMap(tempAblatedPoints) = 1;
-                obj.decorrelationMapSeries(obj.numVolumes).decorrMap(find(obj.decorrelationMapSeries(obj.numVolumes).decorrMap ~= 1)) = 0;
-                % each point above the threshold has a volume of dx^3, so
-                % the number of points * dx^3 gives the volume of ablated
-                % tissue
-                interVal = obj.cumulativeDecorr(obj.numVolumes).decorr(obj.ROI_zRange(1):obj.ROI_zRange(2),obj.ROI_yRange(1):obj.ROI_yRange(2),obj.ROI_xRange(1):obj.ROI_xRange(2));
-                obj.decorrSumSeriesROI(obj.numVolumes) = mean(interVal(:));
-                obj.averageDecorr(obj.numVolumes) = log10(mean(obj.cumulativeDecorr(obj.numVolumes).decorr(:)));
-                
-                obj.decorrVolume(obj.numVolumes) = .001*(length(tempAblatedPoints))*tempDataSet.dx^3; % in cm^3
-            end
-            % append ultrasound data to internal data struct
-            obj.ultrasoundDataSeries = [obj.ultrasoundDataSeries tempDataSet];
-        
         end
         
         function obj = initDataFolderGUI(obj)
@@ -828,54 +621,6 @@ classdef ExperimentClass < handle
             fullDirectory  = dir(obj.activeFolder);
             obj.activeFolderDir = fullDirectory(3:end);
             obj.numVolumes = 1; 
-        end
-        
-        function newFilePresent = checkFolder(obj)
-            % newFilePresent : Check if a new set of volumes is ready for processing 
-            %
-            % Checks if there is an unused folder in the target directory, returns true if so
-            %
-            % Usage:
-            %   newFilePresent = checkFolder(obj)
-            %                  inputs:
-            %                   None
-            %                 outputs:
-            %                   newFilePresent: True if a new folder is present
-            obj.activeFolderDir  = dir(obj.activeFolder);
-            if ismac
-                obj.activeFolderDir = obj.activeFolderDir(3:end); 
-            else
-                obj.activeFolderDir = obj.activeFolderDir(3:end); 
-            end
-            if(length(obj.activeFolderDir) >= obj.numVolumes)
-                newFilePresent = 1; 
-            else
-                newFilePresent = 0;
-            end
-        end
-        
-        function nextDataSetInFolder(obj)
-            % nextDataSetInFolder: get the next data set in the folder
-            %
-            % %Description%
-            %
-            % Usage:
-            %   nextDataSetInFolder(obj)
-            %     inputs:
-            %       %inp1%:
-            %     outputs:
-            %       %outp1%
-            if ispc
-                fullPath =strcat(obj.activeFolder,'\',{obj.activeFolderDir(obj.numVolumes).name},'\',obj.defaultDataFileName);
-            elseif ismac
-                fullPath =strcat(obj.activeFolder,'/',{obj.activeFolderDir(obj.numVolumes).name},'/',obj.defaultDataFileName);
-            end
-            while(~exist(fullPath{1},'file'))
-               pause(.01); 
-               display('waiting for file'); 
-            end
-            obj.addNextDataSetViaFilename2(fullPath{1});
-            obj.numVolumes = obj.numVolumes+1; 
         end
         
         function boolOut = decorrExceedsThresh(obj) 
@@ -980,92 +725,7 @@ classdef ExperimentClass < handle
             %       None
             fclose(obj.outSerialObj); 
         end
-        
-        function updateROIDataSet(obj)
-            % updateROIDataSet: Recompute decorrelation within the ROI using newly set ROI parameters
-            %
-            %
-            % Usage:
-            %   updateROIDataSet(obj)
-            %     inputs:
-            %       None
-            %     outputs:
-            %       None
-            for currN = 1:length(obj.ultrasoundDataSeries) 
-                interVal = obj.cumulativeDecorr(currN).decorr(obj.ROI_zRange(1):obj.ROI_zRange(2),obj.ROI_yRange(1):obj.ROI_yRange(2),obj.ROI_xRange(1):obj.ROI_xRange(2));
-                obj.decorrSumSeriesROI(currN) = mean(interVal(:));
-            end
-        end
-        
-        function initExperiment(obj)
-            % initExperiment: Initailize experiment
-            %
-            % Inits data objects for later use
-            %
-            % Usage:
-            %   initExperiment(obj)
-            %     inputs:
-            %       None
-            %     outputs:
-            %       None
-            interVal = obj.cumulativeDecorr(1).decorr(obj.ROI_zRange(1):obj.ROI_zRange(2),obj.ROI_yRange(1):obj.ROI_yRange(2),obj.ROI_xRange(1):obj.ROI_xRange(2));
-            obj.decorrSumSeriesROI(1) = mean(interVal(:));
-        end
-        
-        function generateTemplateFolder(obj,dirName)
-            % generateTemplateFolder: Create a template folder (unused)
-            %
-            %
-            % Usage:
-            %   generateTemplateFolder(obj,dirName)
-            %     inputs:
-            %       None
-            %     outputs:
-            %       None
-            myDir = dir(dirName);
-            obj.templateFolder = myDir;
-        end
-        
-        function succ = checkTransfer(obj,dirName)
-            % checkTransfer: Checks if the data has been succesfully transferred from the scanner
-            %
-            % Makes sure all data has arrived from the scanner before proceeding, returns a boolean if so
-            %
-            % Usage:
-            %   succ = checkTransfer(obj,dirName)
-            %        inputs:
-            %         dirName: Name of directory to check
-            %       outputs:
-            %         succ: Boolean representing succesful transfer
-            currDir = dir(dirName);
-            succ = true;
-            for n = 1:numel(obj.templateFolder)
-                if currDir(n).name ~= obj.templateFolder(n).name
-                    if abs(currDir(n).bytes - obj.templateFolder(n).bytes) > .01 * currDir(n).bytes
-                        succ = false; 
-                    end
-                end
-            end
-        end
-        
-        function volOut = fixvolume(obj,vol)
-            % fixvolume: Fix volume to match room coordinates (legacy)
-            %
-            % 
-            %
-            % Usage:
-            %   volOut = fixvolume(obj,vol)
-            %          inputs:
-            %            vol: Volume to fix
-            %         outputs:
-            %            volOut: fixed volume
-            for j = 1:size(vol,4)
-                temp = permute(squeeze(vol(:,:,:,j)),[3,2,1]); % permute to same layout as mask data
-                temp = flipdim(temp,2); % flip dim from right to left -> left to right 
-                temp = flipdim(temp,3); % flip dim from top to bottm -> bottom to top 
-                volOut(:,:,:,j) = temp; 
-            end
-        end
+
         
         function obj = setRFDataArray(obj,rfDataArr)
             %  setRFDataArray: Set the variable 'rfDataArray' (legacy)
@@ -1167,23 +827,6 @@ classdef ExperimentClass < handle
     end
     methods (Static)
         function succ = verifyFilesReady(nextDataSet)
-            %  verifyFilesReady: Check if all files are ready in the folder
-            %
-            % %Description%
-            %
-            % Usage:
-            %   succ = verifyFilesReady(nextDataSet)
-            %        inputs:
-            %         %inp1%:
-            %       outputs:
-            %         %outp1%
-            temp = (dir(fullfile(nextDataSet.folder,nextDataSet.name)));
-            tempInd = arrayfun(@(x) x.name(1) == '.',temp,'UniformOutput',false);
-            tempInd = [tempInd{:}];
-            temp(tempInd) = [];
-            succ = length(temp) == 21 || length(temp) == 23;
-        end
-        function succ = verifyFilesReadyNew(nextDataSet)
             fileCells = {'addParamFile.txt', 'alfconfiga0.pmcr', 'apiconfiga0.pmcr', 'aqiconfiga0.pmcr', 'ariconfiga0.pmcr', 'bbfconfiga0.pmcr', 'bufApl0Out_0x0_0x0.data.dm.pmcr', 'bufApl0Out_0x0_0x0.info.txt', 'demodconfiga0.pmcr', 'dsfconfiga0.pmcr', 'dsfconfiga1.pmcr', 'factorygainconfiga0.pmcr', 'imagestatisticsconfiga0.pmcr', 'lsynthconfiga0.pmcr', 'patientcompressionconfig.pmcr', 'patientgainconfiga0.pmcr', 'phaseadjustconfiga0.pmcr', 'psynthconfiga0.pmcr', 'rangeadjustconfiga0.pmcr', 'rrfconfiga0.pmcr', 'scaleadjustconfiga0.pmcr'};
             dir2check = dir(fullfile(nextDataSet.folder,nextDataSet.name));
             dir2check = {dir2check.name};
@@ -1191,6 +834,24 @@ classdef ExperimentClass < handle
             succ = all(cellfun(checkExists,fileCells));
             if succ
                 disp(strcat('Transfer complete. Folder: ',nextDataSet.name));
+            end
+        end
+        function volOut = fixvolume(vol)
+            % fixvolume: Fix volume to match room coordinates (legacy)
+            %
+            % 
+            %
+            % Usage:
+            %   volOut = fixvolume(obj,vol)
+            %          inputs:
+            %            vol: Volume to fix
+            %         outputs:
+            %            volOut: fixed volume
+            for j = 1:size(vol,4)
+                temp = permute(squeeze(vol(:,:,:,j)),[3,2,1]); % permute to same layout as mask data
+                temp = flipdim(temp,2); % flip dim from right to left -> left to right 
+                temp = flipdim(temp,3); % flip dim from top to bottm -> bottom to top 
+                volOut(:,:,:,j) = temp; 
             end
         end
     end
