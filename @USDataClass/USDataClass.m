@@ -76,8 +76,10 @@ classdef USDataClass < handle
         IBSrMin;
         IBSrMax;
         IBStheta;
-        IBSphi;
-        IBSpts;
+        IBSElMin;
+        IBSAzMin;
+        IBSElMax;
+        IBSAzMax;
         isIBSGeo;
     end
     
@@ -101,9 +103,9 @@ classdef USDataClass < handle
         function setIBSParam(obj, IBSrMin, IBSrMax,IBSAzMin,IBSAzMax, IBSElMin,IBSElMax)
             obj.IBSrMin=IBSrMin;
             obj.IBSrMax=IBSrMax;
-            obj.IBSElMax=IBSElMin;
+            obj.IBSElMin=IBSElMin;
             obj.IBSElMax=IBSElMax;
-            obj.IBSAzMax=IBSAzMin;
+            obj.IBSAzMin=IBSAzMin;
             obj.IBSAzMax=IBSAzMax;
             obj.isIBSGeo=true;
         end

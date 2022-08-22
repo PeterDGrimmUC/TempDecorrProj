@@ -6,12 +6,12 @@ function compute3DDecorr_Freq( obj )
     else
         validRange=1:length(obj.z_range);
     end
-    if ~isempty(obj.IBSElmin)
+    if ~isempty(obj.IBSElMin)
         validEl=(obj.x_range>obj.IBSElMin & obj.x_range<obj.IBSElMax); 
     else 
         validEl=1:length(obj.x_range);
     end
-    if ~isempty(obj.IBSAzmin)
+    if ~isempty(obj.IBSAzMin)
         validAz=(obj.y_range>obj.IBSAzMin & obj.y_range<obj.IBSAzMax); 
     else 
         validAz=1:length(obj.y_range);

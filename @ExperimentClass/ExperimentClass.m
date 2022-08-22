@@ -13,6 +13,7 @@ classdef ExperimentClass < handle
         % main arrays
         ultrasoundDataSeries; % Array containing USDataClass objects, corresponding to a set of recorded volumes
         decorrelationMapSeries; % Decorrelation data 
+        ultrasoundShamDataSeries;
         decorrelationMapSeriesROI; % Decorrelation data within specified ROI
         cumulativeDecorr;  % Cumulative decorrelation map over the entire volume
         cumulativeDecorrROI; % Cumulative decorrelation map in ROI
@@ -112,6 +113,7 @@ classdef ExperimentClass < handle
         shamArr;
         shamDec;
         IBSGeoSet;
+        numShamDataSets;
     end
     
     methods
@@ -279,6 +281,7 @@ classdef ExperimentClass < handle
             obj.dz = obj.initDataSet.dz;
             obj.dr = obj.initDataSet.dr;
             obj.numDataSets = 1; 
+            obj.fileLUT{end+1}=nextDataSet.name;
         end
         
         function outDataSet = parseDataFromDir_c(obj,thisFileName)
@@ -310,7 +313,7 @@ classdef ExperimentClass < handle
             % create USDataClass objet
             outDataSet = USDataClass(Dm.data,Dm.startTime, Dm.Info,obj.rmin,obj.rmax,obj.thetamin,obj.thetamax,obj.phimin,obj.phimax,obj.voxelStepCart,obj.sigma,obj.frameRate);
             if obj.IBSGeoSet
-                outDataSet.setIBSParam(obj.IBSrMax,obj.IBSrMin);
+                outDataSet.setIBSParam(obj.IBSrMin,obj.IBSrMax, obj.IBSAzMin,obj.IBSAzMax,obj.IBSElMin,obj.IBSElMax);
             end
         end
         
@@ -354,7 +357,8 @@ classdef ExperimentClass < handle
                 obj.numDataSets = 1; 
             end
             if(~isempty(nextDataSet))
-                %pause(3)
+                
+                while(~ExperimentClass.verifyFilesReadyNew(nextDataSet)); end
                 dataFolderPath = fullfile(obj.dataFolder,nextDataSet.name);
                 %defineGridBounds(obj)
                 
@@ -367,9 +371,7 @@ classdef ExperimentClass < handle
                 %tic
                 dataObj.scanConv_apply_c(obj.scanConvLookup);
                 dataObj.ROIMap = obj.ROIMap;
-                %dataObj.compute3DDecorr_ROI(); 
                 dataObj.compute3DDecorr_Freq(); 
-                %toc
                 dataObj.decorrThresh = obj.decorrThresh;
                 if(isempty(obj.cumulativeDecorr))
                     %obj.cumulativeDecorr = (dataObj.decorr - obj.initDataSet.decorr)./(1-obj.initDataSet.decorr);
@@ -401,20 +403,20 @@ classdef ExperimentClass < handle
             % Checks form, adds and processes the next data set (chronologically) to the object. Uses USDataClass built in methods to handle processing, as well as the ROI defined in the ExperimentClass object. 
             %
             % Usage:
-            %   returnVal = addNextRawDataSet_c(obj)
+            %   returnVal = FaddaddNextRawDataSet_c(obj)
             %             inputs:
             %                None
             %             outputs:
             %                None
             
             nextDataSet = obj.getNextDataSetFolder();
-            if obj.numDataSets == []
-                obj.numDataSets = 1; 
+            if obj.numShamDataSets == []
+                obj.numShamDataSets = 1; 
             end
             if(~isempty(nextDataSet))
                 %pause(3)
                 dataFolderPath = fullfile(obj.dataFolder,nextDataSet.name);
-                
+                while(~ExperimentClass.verifyFilesReadyNew(nextDataSet)); end
                 dataObj = obj.parseDataFromDir_c(fullfile(dataFolderPath,obj.defaultDataFileName));
                 dataObj.folderName = dataFolderPath;
                 fclose all;
@@ -425,21 +427,21 @@ classdef ExperimentClass < handle
                 dataObj.decorrThresh = obj.decorrThresh;
                 if(isempty(obj.cumulativeShamDecorr))
                     obj.cumulativeShamDecorr = dataObj.decorr;
-                    obj.cumulativeShamDecorrROI = obj.cumulativeDecorr.*obj.ROIMap;
-                    obj.decorrAverageSeries(obj.numDataSets) = sum(obj.cumulativeDecorr(:))/numel(obj.cumulativeDecorr(:));
-                    obj.decorrAverageSeriesROI(obj.numDataSets) = sum(obj.cumulativeDecorrROI(:))/sum(obj.ROIMap(:));
+                    %obj.cumulativeShamDecorrROI = obj.cumulativeShamDecorr.*obj.ROIMap;
+                    %obj.decorrAverageSeries(obj.numDataSets) = sum(obj.cumulativeDecorr(:))/numel(obj.cumulativeDecorr(:));
+                    %obj.decorrAverageSeriesROI(obj.numDataSets) = sum(obj.cumulativeDecorrROI(:))/sum(obj.ROIMap(:));
                 else
-                    obj.cumulativeShamDecorr = max(obj.cumulativeDecorr,(dataObj.decorr));
-                    obj.cumulativeShamDecorrROI = max(obj.cumulativeDecorrROI,obj.cumulativeDecorr.*obj.ROIMap);
-                    obj.decorrAverageSeries(obj.numDataSets) = sum(obj.cumulativeDecorr(:))/numel(obj.cumulativeDecorr(:));
-                    obj.decorrAverageSeriesROI(obj.numDataSets) = sum(obj.cumulativeDecorrROI(:))/sum(obj.ROIMap(:));
+                    obj.cumulativeShamDecorr = max(obj.cumulativeShamDecorr,(dataObj.decorr));
+                    %obj.cumulativeShamDecorrROI = max(obj.cumulativeShamDecorrROI,obj.cumulativeDecorr.*obj.ROIMap);
+                    %obj.decorrAverageSeries(obj.numDataSets) = sum(obj.cumulativeDecorr(:))/numel(obj.cumulativeDecorr(:));
+                    %obj.decorrAverageSeriesROI(obj.numDataSets) = sum(obj.cumulativeDecorrROI(:))/sum(obj.ROIMap(:));
                 end
                 if(isempty(obj.ultrasoundShamDataSeries))
-                    obj.ultrasoundDataSeries = dataObj;
+                    obj.ultrasoundShamDataSeries = dataObj;
                 else
-                    obj.ultrasoundDataSeries = [obj.ultrasoundShamDataSeries,dataObj]; 
+                    obj.ultrasoundShamDataSeries = [obj.ultrasoundShamDataSeries,dataObj]; 
                 end
-                obj.numDataSets = obj.numDataSets +1;
+                obj.numShamDataSets = obj.numShamDataSets +1;
                 returnVal = 1;
             else
                 returnVal = -1;  
@@ -464,8 +466,7 @@ classdef ExperimentClass < handle
             if(~isempty(nextDataSet))
                 
                 dataFolderPath = fullfile(obj.dataFolder,nextDataSet.name);
-                
-                
+                while(~ExperimentClass.verifyFilesReadyNew(nextDataSet)); end
                 dataObj = obj.parseDataFromDir_c(fullfile(dataFolderPath,obj.defaultDataFileName));
                 dataObj.folderName = dataFolderPath;
                 
@@ -521,7 +522,7 @@ classdef ExperimentClass < handle
                 obj.numDataSets = 1; 
             end
             if(~isempty(nextDataSet))
-                
+                while(~ExperimentClass.verifyFilesReadyNew(nextDataSet)); end
                 dataFolderPath = fullfile(obj.dataFolder,nextDataSet.name);
                 dataObj = obj.parseDataFromDir_c(fullfile(dataFolderPath,obj.defaultDataFileName));
                 dataObj.folderName = dataFolderPath;
@@ -533,14 +534,16 @@ classdef ExperimentClass < handle
                 
                 dataObj.compute3DDecorr_Freq(); 
                 dataObj.decorrThresh = obj.decorrThresh;
+                tau=1/obj.frameRate;
                 if(isempty(obj.cumulativeDecorr))
-                    obj.cumulativeDecorr = (dataObj.decorr - obj.cumulativeShamDecorr)./(1-obj.cumulativeShamDecorr);
+                    obj.cumulativeDecorr = (dataObj.decorr - obj.cumulativeShamDecorr)./(1/tau-obj.cumulativeShamDecorr);
                     obj.cumulativeDecorr(obj.cumulativeDecorr <0)=realmin;
                     obj.cumulativeDecorrROI = obj.cumulativeDecorr.*obj.ROIMap;
                     obj.decorrAverageSeries(obj.numDataSets) = sum(obj.cumulativeDecorr(:))/numel(obj.cumulativeDecorr(:));
                     obj.decorrAverageSeriesROI(obj.numDataSets) = sum(obj.cumulativeDecorrROI(:))/sum(obj.ROIMap(:));
                 else
-                    obj.cumulativeDecorr = max(obj.cumulativeDecorr,(dataObj.decorr - obj.cumulativeShamDecorr)./(1-obj.cumulativeShamDecorr));
+                    
+                    obj.cumulativeDecorr = max(obj.cumulativeDecorr,(dataObj.decorr - obj.cumulativeShamDecorr)./(1/tau-obj.cumulativeShamDecorr));
                     obj.cumulativeDecorr(obj.cumulativeDecorr <0)=realmin;
                     obj.cumulativeDecorrROI = max(obj.cumulativeDecorrROI,obj.cumulativeDecorr.*obj.ROIMap);
                     obj.decorrAverageSeries(obj.numDataSets) = sum(obj.cumulativeDecorr(:))/numel(obj.cumulativeDecorr(:));
@@ -579,6 +582,7 @@ classdef ExperimentClass < handle
             if(~isempty(dataSetsReady))
                 [~,minInd] = min(dateTimeArr);
                 nextDataSetFolder = dataSetsReady(minInd);
+                disp('New data folder found! ');
             else
                 nextDataSetFolder = [];
             end
@@ -1183,8 +1187,11 @@ classdef ExperimentClass < handle
             fileCells = {'addParamFile.txt', 'alfconfiga0.pmcr', 'apiconfiga0.pmcr', 'aqiconfiga0.pmcr', 'ariconfiga0.pmcr', 'bbfconfiga0.pmcr', 'bufApl0Out_0x0_0x0.data.dm.pmcr', 'bufApl0Out_0x0_0x0.info.txt', 'demodconfiga0.pmcr', 'dsfconfiga0.pmcr', 'dsfconfiga1.pmcr', 'factorygainconfiga0.pmcr', 'imagestatisticsconfiga0.pmcr', 'lsynthconfiga0.pmcr', 'patientcompressionconfig.pmcr', 'patientgainconfiga0.pmcr', 'phaseadjustconfiga0.pmcr', 'psynthconfiga0.pmcr', 'rangeadjustconfiga0.pmcr', 'rrfconfiga0.pmcr', 'scaleadjustconfiga0.pmcr'};
             dir2check = dir(fullfile(nextDataSet.folder,nextDataSet.name));
             dir2check = {dir2check.name};
-            checkExists = @(strIn) any(cellfun(@(currString) strcmp(strIn,currString), dir2check ));
+            checkExists = @(strIn) any(cellfun(@(currString) strcmp(strIn,currString), dir2check));
             succ = all(cellfun(checkExists,fileCells));
+            if succ
+                disp(strcat('Transfer complete. Folder: ',nextDataSet.name));
+            end
         end
     end
 end
