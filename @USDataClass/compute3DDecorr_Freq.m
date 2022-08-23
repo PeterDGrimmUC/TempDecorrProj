@@ -1,21 +1,14 @@
 function compute3DDecorr_Freq( obj )
     %COMPUTE3DDECORR Summary of this function goes here
     %%
-    if ~isempty(obj.IBSrMin) && ~isempty(obj.IBSrMax)
-        validRange=(obj.z_range>obj.IBSrMin & obj.z_range<obj.IBSrMax);
-    else
-        validRange=1:length(obj.z_range);
+    validPts=obj.rawData_cart(:,:,:,1)~=0;
+    if ~isempty(obj.IBSrMin) && ~isempty(obj.IBSrMax)        
+    validPts=validPts&...
+             ndgrid(obj.z_range>obj.IBSrMin&obj.z_range<obj.IBSrMax,...
+                    obj.y_range>obj.IBSAzMin&obj.y_range<obj.IBSAzMax,...
+                    obj.x_range>obj.IBSElMin&obj.x_range<obj.IBSElMax);
     end
-    if ~isempty(obj.IBSElMin)
-        validEl=(obj.x_range>obj.IBSElMin & obj.x_range<obj.IBSElMax); 
-    else 
-        validEl=1:length(obj.x_range);
-    end
-    if ~isempty(obj.IBSAzMin)
-        validAz=(obj.y_range>obj.IBSAzMin & obj.y_range<obj.IBSAzMax); 
-    else 
-        validAz=1:length(obj.y_range);
-    end
+    
     % *Define Guassian Window* 
     sigx = obj.windowSigma/obj.dx;
     sigy = obj.windowSigma/obj.dy;
@@ -71,11 +64,10 @@ function compute3DDecorr_Freq( obj )
         R00 = obj.ibs(:,:,:,currVolume);
         R11 = obj.ibs(:,:,:,currVolume+1);
         B2 = R00.*R11;
-        B2ValidIBS = B2(validRange,validAz,validEl);
+        B2ValidIBS = B2(validPts);
         BMean=mean(B2ValidIBS(:));
         R01 = (obj.autocorr01(:,:,:,currVolume)).^2;
         tau = 10^3*(obj.interFrameTime);
-        
         obj.decorr(:,:,:,currVolume) = 2*(B2-R01)./(B2 + BMean)/tau;
         
     end
