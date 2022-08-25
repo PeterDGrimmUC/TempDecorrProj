@@ -41,9 +41,10 @@ gammaAng = 0;
 elevR_in = 0; 
 azimR_in = 0; 
 depthR_in = 0; 
-experiment.setROIParams(elevLoc,azimLoc,depthLoc,elevR,azimR,depthR,elevR_in,azimR_in,depthR_in,alphaAng,gammaAng,betaAng);
 %%
-experiment.setIBSparam(30,5);
+experiment.setIBSparam(-1000, 60, -30,30,-30,30)
+experiment.setROIParams(elevLoc,azimLoc,depthLoc,elevR,azimR,depthR,elevR_in,azimR_in,depthR_in,alphaAng,gammaAng,betaAng);
+
 %%
 
 %% process remaining data

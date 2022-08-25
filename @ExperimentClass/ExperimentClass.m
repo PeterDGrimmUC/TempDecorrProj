@@ -456,13 +456,15 @@ classdef ExperimentClass < handle
                 dataObj.decorrThresh = obj.decorrThresh;
                 tau=10^3/obj.frameRate;
                 if(isempty(obj.cumulativeDecorr))
-                    obj.cumulativeDecorr = (dataObj.decorr - obj.cumulativeShamDecorr)./(1/tau-obj.cumulativeShamDecorr);
+                    obj.cumulativeDecorr = ((dataObj.decorr - obj.cumulativeShamDecorr)./(1/tau-obj.cumulativeShamDecorr))/tau;
                     obj.cumulativeDecorr(obj.cumulativeDecorr <0)=realmin;
                     obj.cumulativeDecorrROI = obj.cumulativeDecorr.*obj.ROIMap;
                     obj.decorrAverageSeries(obj.numDataSets) = sum(obj.cumulativeDecorr(:))/numel(obj.cumulativeDecorr(:));
                     obj.decorrAverageSeriesROI(obj.numDataSets) = sum(obj.cumulativeDecorrROI(:))/sum(obj.ROIMap(:));
                 else
-                    obj.cumulativeDecorr = max(obj.cumulativeDecorr,(dataObj.decorr - obj.cumulativeShamDecorr)./(1/tau-obj.cumulativeShamDecorr));
+                    tempDec = ((dataObj.decorr - obj.cumulativeShamDecorr)./(1/tau-obj.cumulativeShamDecorr))/tau;
+                    tempDec(tempDec<0)=realmin;
+                    obj.cumulativeDecorr = max(obj.cumulativeDecorr,tempDec);
                     obj.cumulativeDecorr(obj.cumulativeDecorr <0)=realmin;
                     obj.cumulativeDecorrROI = max(obj.cumulativeDecorrROI,obj.cumulativeDecorr.*obj.ROIMap);
                     obj.decorrAverageSeries(obj.numDataSets) = sum(obj.cumulativeDecorr(:))/numel(obj.cumulativeDecorr(:));
