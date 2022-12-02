@@ -5,8 +5,8 @@ fileName = mfilename('fullpath');
 thisFileDir = uigetdir(); % point this towards the target data directory
 thisFileName = fullfile(thisFileDir,'bufApl0Out_0x0_0x0.data.dm.pmcr');
 tic;
-%
-Dm = read_lbdump_wrapc(thisFileName); % call memory mapped read function (requires MEX function)
+%%
+Dm = read_lbdu      mp_wrapc(thisFileName); % call memory mapped read function (requires MEX function)
 toc;
 %%
 % get radius information

@@ -1,6 +1,5 @@
-function compute3DDecorr_Freq( obj )
-    %COMPUTE3DDECORR Summary of this function goes here
-    %%
+function compute3DDecorr_arg( obj, normParam)
+    %% COMPUTE3DDECORR Summary of this function goes here
     validPts=obj.rawData_cart(:,:,:,1)~=0;
     if ~isempty(obj.IBSrMin) && ~isempty(obj.IBSrMax)        
         validPts=validPts&...
@@ -63,6 +62,16 @@ function compute3DDecorr_Freq( obj )
         BMean=mean(B2ValidIBS(:));
         R01 = (obj.autocorr01(:,:,:,currVolume)).^2;
         tau = 10^3*(obj.interFrameTime);
-        obj.decorr(:,:,:,currVolume) = 2*(B2-R01)./(B2 + BMean)/tau;
+        denTerm = ones(size(B2));
+        if normParam.global
+            denTerm = denTerm + BMean; 
+        end
+        if normParam.local
+            denTerm = denTerm + B2;
+        end
+        if normParam.time
+            denTerm = denTerm * tau;
+        end
+        obj.decorr(:,:,:,currVolume) = 2*(B2-R01)./denTerm;
     end
 end
