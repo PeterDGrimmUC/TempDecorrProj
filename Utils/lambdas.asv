@@ -53,7 +53,7 @@ ptROC=@(x,y) struct('sens',ptSens(x,y),'spec',ptSpec(x,y),'value',log10(ptVal(x,
 optimalROC=@(x) struct('sens',optimalPtSens(x),'spec',optimalPtSpec(x),'value',log10(optimalPtVal(x)));
 unravel=@(x)x(:);
 unravelAt=@(x,y)x(y);
-mapreduce=@(x,y) mapReduceH(x,y);
+mapreduce=@
 %%
 ndgridMultT=@(c)ndgridMultH(c);
 maxind=@(d)maxindh(d);
@@ -103,7 +103,7 @@ function output=mapReduceH(funIn, datIn)
     else
         callFunc = @(x,y) x(y);
     end
-    output=funIn(callFunc(datIn,length(datIn)-1),callFunc(datIn,length(datIn)));
+    output=funIn(callFunc(datIn,end-1),callFunc(datIn,end));
     for i = length(datIn)-2:-1:1
         output=funIn(callFunc(datIn,i),output);
     end

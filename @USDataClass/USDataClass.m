@@ -197,7 +197,7 @@ classdef USDataClass < handle
             obj.rawData_cart = volOut; 
         end
         function outDec=getFormattedDec(obj, normParam)
-            denTerm = ones(size(obj.B2));
+            denTerm = zeros(size(obj.B2));
             if normParam.global
                 denTerm = denTerm + obj.B2_avg;
             end
