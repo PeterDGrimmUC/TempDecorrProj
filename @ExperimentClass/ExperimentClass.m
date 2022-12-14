@@ -430,7 +430,7 @@ classdef ExperimentClass < handle
                 obj.numDataSets = obj.numDataSets +1;
                 returnVal = 1;
             else
-                returnVal = -1;  
+                returnVal = -1;
             end
        end
        function returnVal = addNextRawDataSet_c_corrected(obj)
@@ -459,8 +459,10 @@ classdef ExperimentClass < handle
                 dataObj.ROIMap = obj.ROIMap;
                 dataObj.compute3DDecorr_Freq(); 
                 dataObj.decorrThresh = obj.decorrThresh;
+                
                 if(isempty(obj.cumulativeDecorr))
                     obj.cumulativeDecorr = max(obj.cumulativeShamDecorr, dataObj.decorr);
+                    obj.motionCorrectDecorr();
                     obj.cumulativeDecorrROI = obj.cumulativeDecorr.*obj.ROIMap;
                     obj.decorrAverageSeries(obj.numDataSets) = sum(obj.cumulativeDecorr(:))/numel(obj.cumulativeDecorr(:));
                     obj.decorrAverageSeriesROI(obj.numDataSets) = sum(obj.cumulativeDecorrROI(:))/sum(obj.ROIMap(:));
@@ -469,9 +471,9 @@ classdef ExperimentClass < handle
                     obj.cumulativeDecorr = max(obj.cumulativeDecorr,(dataObj.decorr));
                     obj.motionCorrectDecorr();
                     obj.cumulativeDecorrROI = max(obj.cumulativeDecorrROI,obj.cumulativeDecorr.*obj.ROIMap);
-                    obj.decorrAverageSeries(obj.numDataSets) = sum(obj.cumulativeDecorr(:))/numel(obj.cumulativeDecorr(:));
-                    obj.decorrAverageSeriesROI(obj.numDataSets) = sum(obj.cumulativeDecorrROI(:))/sum(obj.ROIMap(:));
-                    obj.cumdecorrAverageSeriesROI(obj.numDataSets)=mean(obj.cumulativeDecorr(obj.ROIMap));
+                    obj.decorrAverageSeries(obj.numDataSets) = sum(obj.correctedDecorr(:))/numel(obj.cumulativeDecorr(:));
+                    obj.decorrAverageSeriesROI(obj.numDataSets) = sum(obj.correctedDecorr((obj.ROIMap))/sum(obj.ROIMap(:)));
+                    obj.cumdecorrAverageSeriesROI(obj.numDataSets)=mean(obj.correctedDecorr(obj.ROIMap));
                 end
                 if(isempty(obj.ultrasoundDataSeries))
                     obj.ultrasoundDataSeries = dataObj;
@@ -485,7 +487,9 @@ classdef ExperimentClass < handle
             end
        end
        function motionCorrectDecorr(obj)
-            obj.correctedDecorr=(obj.cumulativeDecorr-obj.cumulativeShamDecorr)./(1-obj.cumulativeShamDecorr);
+           tau=10^3/obj.frameRate;
+            obj.correctedDecorr=(obj.cumulativeDecorr-obj.cumulativeShamDecorr)./(1/tau-obj.cumulativeShamDecorr)/tau;
+            obj.correctedDecorr(obj.correctedDecorr<0) = 0;
        end
         function returnVal = addNextRawDataSetCorrected_c_old(obj)
             % addNextRawData_set_c: Use the c program to add the next data set in the target folder to the object
