@@ -57,21 +57,26 @@ function compute3DDecorr_arg( obj, normParam)
     for currVolume = 1:(size(obj.ibs,4)-1)
         R00 = obj.ibs(:,:,:,currVolume);
         R11 = obj.ibs(:,:,:,currVolume+1);
-        B2 = R00.*R11;
-        B2ValidIBS = B2(validPts);
-        BMean=mean(B2ValidIBS(:));
-        R01 = (obj.autocorr01(:,:,:,currVolume)).^2;
+        obj.B2 = R00.*R11;
+        B2ValidIBS = obj.B2(validPts);
+        obj.B2_avg = mean(B2ValidIBS(:));
+        obj.R01 = (obj.autocorr01(:,:,:,currVolume)).^2;
         tau = 10^3*(obj.interFrameTime);
-        denTerm = ones(size(B2));
+        denTerm = ones(size(obj.B2));
         if normParam.global
-            denTerm = denTerm + BMean; 
+            denTerm = denTerm + obj.B2_avg;
         end
         if normParam.local
-            denTerm = denTerm + B2;
+            denTerm = denTerm + obj.B2;
+        end
+        if normParam.local && normParam.global
+            numTerm=2;
+        else
+            numTerm=1;
         end
         if normParam.time
             denTerm = denTerm * tau;
         end
-        obj.decorr(:,:,:,currVolume) = 2*(B2-R01)./denTerm;
+        obj.decorr(:,:,:,currVolume) = numTerm*(obj.B2-obj.R01)./denTerm;
     end
 end

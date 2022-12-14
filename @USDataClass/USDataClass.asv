@@ -83,8 +83,6 @@ classdef USDataClass < handle
         isIBSGeo;
         B2;
         B2_avg;
-        tau;
-        R01;
     end
     
     methods
@@ -196,29 +194,10 @@ classdef USDataClass < handle
             end
             obj.rawData_cart = volOut; 
         end
-        function outDec=getFormattedDec(obj, normParam)
-            denTerm = ones(size(obj.B2));
-            if normParam.global
-                denTerm = denTerm + obj.B2_avg;
-            end
-            if normParam.local
-                denTerm = denTerm + obj.B2;
-            end
-            if normParam.local && normParam.global
-                numTerm=2;
-            else
-                numTerm=1;
-            end
-            if normParam.time
-                denTerm = denTerm * obj.tau;
-            end
-            obj.decorr = numTerm*(obj.B2-obj.R01)./denTerm;
-            outDec=obj.decorr; 
-        end
-        function outDecCorrected=motionCorrectDecorr(obj, decorrIn, shamDec)
-            % shamDec is local norm cumulative sham decorr (not per ms)
+        function outDecCorrected=motionCorrectDecorr(obj, shamDec)
+            % shamDec is local norm
             B = (obj.B2 + obj.B2_avg)./(2*obj.B2);
-            D_inter = (decorrIn - shamDec)./(1-shamDec); % where obj.decorr is inst.
+            D_inter=(obj.decorr - shamDec)./(1-shamDec); % where obj.decorr is inst.
             outDecCorrected=D_inter./B;
         end
 

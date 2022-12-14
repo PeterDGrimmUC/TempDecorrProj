@@ -16,17 +16,22 @@ classdef ExperimentClass < handle
         ultrasoundShamDataSeries;
         decorrelationMapSeriesROI; % Decorrelation data within specified ROI
         cumulativeDecorr;  % Cumulative decorrelation map over the entire volume
+        cumulativeDecorrPerMS;
         cumulativeDecorrROI; % Cumulative decorrelation map in ROI
+        cumulativeDecorrROIPerMS;
         cumulativeShamDecorr;
-        correctedDecorr; 
+        correctedDecorr;
         uncorrectedCumulativeDecorr;
         uncorrectedCumulativeDecorrROI;
         cumulativeShamDecorrROI;
-        cumdecorrAverageSeriesROI
+        cumdecorrAverageSeriesROI;
+        cumdecorrAverageSeriesROIPerMS;
         decorrSumSeries; % 
         decorrSumSeriesROI;
         decorrAverageSeries;
+        decorrAverageSeriesPerMS;
         decorrAverageSeriesROI;
+        decorrAverageSeriesROIPerMS;
         decorrVolume; 
         averageDecorr; 
         subRegionMap;
@@ -118,6 +123,7 @@ classdef ExperimentClass < handle
         shamDec;
         IBSGeoSet;
         numShamDataSets;
+        decStruct=struct('time', true, 'global',true, 'local', true);
     end
     
     methods
@@ -157,7 +163,13 @@ classdef ExperimentClass < handle
             obj.decorrVolume = []; 
             obj.averageDecorr = []; 
         end
-        
+        function setNormMode(obj, isLocal,isGlobal)
+           obj.decStruct.local=isLocal;
+           obj.decStruct.global=isGlobal;
+        end
+        function setTauMode(obj, isTauNormalized)
+            obj.decStruct.time=isTauNormalized;
+        end
         function setControlParams(obj,myThresh)
             % setControlParams: Set parameters for control
             %
@@ -365,12 +377,12 @@ classdef ExperimentClass < handle
                 obj.fileLUT{end+1}=nextDataSet.name;
                 dataObj.scanConv_apply_c(obj.scanConvLookup);
                 dataObj.ROIMap = obj.ROIMap;
-                dataObj.compute3DDecorr_Freq(); 
+                dataObj.compute3DDecorr_arg(struct('time',false,'global',false,'local',true)); 
                 dataObj.decorrThresh = obj.decorrThresh;
                 if(isempty(obj.cumulativeShamDecorr))
                     obj.cumulativeShamDecorr = dataObj.decorr;
                 else
-                    obj.cumulativeShamDecorr = max(obj.cumulativeShamDecorr,(dataObj.decorr));
+                    obj.cumulativeShamDecorr = max(obj.cumulativeShamDecorr,dataObj.decorr);
                 end
                 if(isempty(obj.ultrasoundShamDataSeries))
                     obj.ultrasoundShamDataSeries = dataObj;
@@ -382,7 +394,34 @@ classdef ExperimentClass < handle
             else
                 returnVal = -1;  
             end
-        end 
+       end
+       
+       function updateDecorrSeries(obj,dataObj)
+            decorrIn=dataObj.getFormattedDec(struct('time',true,'local',obj.decStruct.local,'global',obj.decStruct.global));
+            obj.updateCumulativeDecorr(decorrIn); 
+       end
+       
+       function updateMotionCorrectedDecorrSeries(obj,dataObj)
+            tau=dataObj.tau;
+            instDecLocalNorm=dataObj.getFormattedDec(struct('time',false,'global',false,'local',false));
+            correctedInstDec=dataObj.motionCorrectDecorr(instDecLocalNorm, obj.cumulativeShamDecorr)/tau;
+            obj.updateCumulativeDecorr(correctedInstDec);
+       end
+       function updateCumulativeDecorr(obj,newDecorr)
+            if(isempty(obj.cumulativeDecorr))
+                obj.cumulativeDecorr = newDecorr;
+                obj.cumulativeDecorrROI = obj.cumulativeDecorr.*obj.ROIMap;
+                obj.decorrAverageSeries(obj.numDataSets) = sum(obj.cumulativeDecorr(:))/numel(obj.cumulativeDecorr(:));
+                obj.decorrAverageSeriesROI(obj.numDataSets) = sum(obj.cumulativeDecorrROI(:))/sum(obj.ROIMap(:));
+                obj.cumdecorrAverageSeriesROI(obj.numDataSets)=obj.decorrAverageSeriesROI(obj.numDataSets);
+            else
+                obj.cumulativeDecorr = max(obj.cumulativeDecorr,newDecorr);
+                obj.cumulativeDecorrROI = max(obj.cumulativeDecorrROI,obj.cumulativeDecorr.*obj.ROIMap);
+                obj.decorrAverageSeries(obj.numDataSets) = sum(obj.cumulativeDecorr(:))/numel(obj.cumulativeDecorr(:));
+                obj.decorrAverageSeriesROI(obj.numDataSets) = sum(obj.cumulativeDecorrROI(:))/sum(obj.ROIMap(:));
+                obj.cumdecorrAverageSeriesROI(obj.numDataSets)=mean(obj.cumulativeDecorr(obj.ROIMap));
+            end 
+       end
        function returnVal = addNextRawDataSet_c(obj)
             % addNextRawData_set_c: Use the c program to add the next data set in the target folder to the object
             %
@@ -407,21 +446,8 @@ classdef ExperimentClass < handle
                 obj.fileLUT{end+1}=nextDataSet.name;
                 dataObj.scanConv_apply_c(obj.scanConvLookup);
                 dataObj.ROIMap = obj.ROIMap;
-                dataObj.compute3DDecorr_Freq(); 
-                dataObj.decorrThresh = obj.decorrThresh;
-                if(isempty(obj.cumulativeDecorr))
-                    obj.cumulativeDecorr = dataObj.decorr;
-                    obj.cumulativeDecorrROI = obj.cumulativeDecorr.*obj.ROIMap;
-                    obj.decorrAverageSeries(obj.numDataSets) = sum(obj.cumulativeDecorr(:))/numel(obj.cumulativeDecorr(:));
-                    obj.decorrAverageSeriesROI(obj.numDataSets) = sum(obj.cumulativeDecorrROI(:))/sum(obj.ROIMap(:));
-                    obj.cumdecorrAverageSeriesROI(obj.numDataSets)=obj.decorrAverageSeriesROI(obj.numDataSets);
-                else
-                    obj.cumulativeDecorr = max(obj.cumulativeDecorr,(dataObj.decorr));
-                    obj.cumulativeDecorrROI = max(obj.cumulativeDecorrROI,obj.cumulativeDecorr.*obj.ROIMap);
-                    obj.decorrAverageSeries(obj.numDataSets) = sum(obj.cumulativeDecorr(:))/numel(obj.cumulativeDecorr(:));
-                    obj.decorrAverageSeriesROI(obj.numDataSets) = sum(obj.cumulativeDecorrROI(:))/sum(obj.ROIMap(:));
-                    obj.cumdecorrAverageSeriesROI(obj.numDataSets)=mean(obj.cumulativeDecorr(obj.ROIMap));
-                end
+                dataObj.compute3DDecorr();
+                obj.updateDecorrSeries(dataObj);
                 if(isempty(obj.ultrasoundDataSeries))
                     obj.ultrasoundDataSeries = dataObj;
                 else
@@ -433,7 +459,7 @@ classdef ExperimentClass < handle
                 returnVal = -1;
             end
        end
-       function returnVal = addNextRawDataSet_c_corrected(obj)
+       function returnVal = addNextRawDataSetCorrected_c(obj)
             % addNextRawData_set_c: Use the c program to add the next data set in the target folder to the object
             %
             % Checks form, adds and processes the next data set (chronologically) to the object. Uses USDataClass built in methods to handle processing, as well as the ROI defined in the ExperimentClass object. 
@@ -457,24 +483,8 @@ classdef ExperimentClass < handle
                 obj.fileLUT{end+1}=nextDataSet.name;
                 dataObj.scanConv_apply_c(obj.scanConvLookup);
                 dataObj.ROIMap = obj.ROIMap;
-                dataObj.compute3DDecorr_Freq(); 
-                dataObj.decorrThresh = obj.decorrThresh;
-                
-                if(isempty(obj.cumulativeDecorr))
-                    obj.cumulativeDecorr = max(obj.cumulativeShamDecorr, dataObj.decorr);
-                    obj.motionCorrectDecorr
-                    obj.cumulativeDecorrROI = obj.cumulativeDecorr.*obj.ROIMap;
-                    obj.decorrAverageSeries(obj.numDataSets) = sum(obj.cumulativeDecorr(:))/numel(obj.cumulativeDecorr(:));
-                    obj.decorrAverageSeriesROI(obj.numDataSets) = sum(obj.cumulativeDecorrROI(:))/sum(obj.ROIMap(:));
-                    obj.cumdecorrAverageSeriesROI(obj.numDataSets)=obj.decorrAverageSeriesROI(obj.numDataSets);
-                else
-                    obj.cumulativeDecorr = max(obj.cumulativeDecorr,(dataObj.decorr));
-                    obj.motionCorrectDecorr();
-                    obj.cumulativeDecorrROI = max(obj.cumulativeDecorrROI,obj.cumulativeDecorr.*obj.ROIMap);
-                    obj.decorrAverageSeries(obj.numDataSets) = sum(obj.correctedDecorr(:))/numel(obj.cumulativeDecorr(:));
-                    obj.decorrAverageSeriesROI(obj.numDataSets) = sum(obj.correctedDecorr(:))/sum(obj.ROIMap(:));
-                    obj.cummax(decorrAverageSeriesROI(obj.numDataSets)=mean(obj.correctedDecorr(obj.ROIMap));
-                end
+                dataObj.compute3DDecorr();
+                obj.updateDecorrSeries(dataObj);
                 if(isempty(obj.ultrasoundDataSeries))
                     obj.ultrasoundDataSeries = dataObj;
                 else
@@ -483,125 +493,11 @@ classdef ExperimentClass < handle
                 obj.numDataSets = obj.numDataSets +1;
                 returnVal = 1;
             else
-                returnVal = -1;  
+                returnVal = -1;
             end
        end
-       function motionCorrectDecorr(obj)
-           tau=10^3/obj.frameRate;
-            obj.correctedDecorr=(obj.cumulativeDecorr-obj.cumulativeShamDecorr)./(1/tau-obj.cumulativeShamDecorr);
-       end
-        function returnVal = addNextRawDataSetCorrected_c_old(obj)
-            % addNextRawData_set_c: Use the c program to add the next data set in the target folder to the object
-            %
-            % Checks form, adds and processes the next data set (chronologically) to the object. Uses USDataClass built in methods to handle processing, as well as the ROI defined in the ExperimentClass object. 
-            %
-            % Usage:
-            %   returnVal = addNextRawDataSet_c(obj)
-            %             inputs:
-            %                None
-            %             outputs:
-            %                None
-            nextDataSet = obj.getNextDataSetFolder_c();
-            if isempty(obj.numShamDataSets)
-                obj.numShamDataSets = 1; 
-            end
-            if(~isempty(nextDataSet))
-                dataFolderPath = fullfile(obj.dataFolder,nextDataSet.name);
-                dataObj = obj.parseDataFromDir_c(fullfile(dataFolderPath,obj.defaultDataFileName));
-                dataObj.folderName = dataFolderPath;
-                fclose all;
-                obj.fileLUT{end+1}=nextDataSet.name;
-                
-                dataObj.scanConv_apply_c(obj.scanConvLookup);
-                dataObj.ROIMap = obj.ROIMap;
-                
-                dataObj.compute3DDecorr_Freq(); 
-                dataObj.decorrThresh = obj.decorrThresh;
-                tau=10^3/obj.frameRate;
-                if(isempty(obj.cumulativeDecorr))
-                    temp = obj.cumulativeShamDecorr;
-                    obj.cumulativeDecorr = ((temp - obj.cumulativeShamDecorr)./(1/tau-obj.cumulativeShamDecorr))/tau;
-                    obj.cumulativeDecorr(obj.cumulativeDecorr <0) = realmin;
-                    obj.cumulativeDecorrROI = obj.cumulativeDecorr.*obj.ROIMap;
-                    obj.decorrAverageSeries(obj.numDataSets) = sum(obj.cumulativeDecorr(:))/numel(obj.cumulativeDecorr(:));
-                    obj.decorrAverageSeriesROI(obj.numDataSets) = sum(obj.cumulativeDecorrROI(:))/sum(obj.ROIMap(:));
-                else
-                    obj.cumulativeDecorr = max(obj.cumulativeDecorr,tempDec);
-                    tempDec = ((obj.cumulativeDecorr - obj.cumulativeShamDecorr)./(1/tau-obj.cumulativeShamDecorr))/tau;
-                    tempDec(tempDec<0)=realmin;
-                    obj.cumulativeDecorr = max(obj.cumulativeDecorr,tempDec);
-                    obj.cumulativeDecorr(obj.cumulativeDecorr <0)=realmin;
-                    obj.cumulativeDecorrROI = max(obj.cumulativeDecorrROI,obj.cumulativeDecorr.*obj.ROIMap);
-                    obj.decorrAverageSeries(obj.numDataSets) = sum(obj.cumulativeDecorr(:))/numel(obj.cumulativeDecorr(:));
-                    obj.decorrAverageSeriesROI(obj.numDataSets) = sum(obj.cumulativeDecorrROI(:))/sum(obj.ROIMap(:));
-                end
-                if(isempty(obj.ultrasoundDataSeries))
-                    obj.ultrasoundDataSeries = dataObj;
-                else
-                    obj.ultrasoundDataSeries = [obj.ultrasoundDataSeries,dataObj]; 
-                end
-                obj.numDataSets = obj.numDataSets +1;
-                returnVal = 1;
-            else
-                returnVal = -1;  
-            end
-        end
-        function returnVal = addNextRawDataSetCorrected_c(obj)
-            % addNextRawData_set_c: Use the c program to add the next data set in the target folder to the object
-            %
-            % Checks form, adds and processes the next data set (chronologically) to the object. Uses USDataClass built in methods to handle processing, as well as the ROI defined in the ExperimentClass object. 
-            %
-            % Usage:
-            %   returnVal = addNextRawDataSet_c(obj)
-            %             inputs:
-            %                None
-            %             outputs:
-            %                None
-            nextDataSet = obj.getNextDataSetFolder_c();
-            if isempty(obj.numShamDataSets)
-                obj.numShamDataSets = 1; 
-            end
-            if(~isempty(nextDataSet))
-                dataFolderPath = fullfile(obj.dataFolder,nextDataSet.name);
-                dataObj = obj.parseDataFromDir_c(fullfile(dataFolderPath,obj.defaultDataFileName));
-                dataObj.folderName = dataFolderPath;
-                fclose all;
-                obj.fileLUT{end+1}=nextDataSet.name;
-                
-                dataObj.scanConv_apply_c(obj.scanConvLookup);
-                dataObj.ROIMap = obj.ROIMap;
-                
-                dataObj.compute3DDecorr_Freq(); 
-                dataObj.decorrThresh = obj.decorrThresh;
-                tau=10^3/obj.frameRate;
-                if(isempty(obj.cumulativeDecorr))
-                    obj.uncorrectedCumulativeDecorr = max(obj.cumulativeShamDecorr, dataObj.decorr);
-                    obj.cumulativeDecorr = ((temp - obj.cumulativeShamDecorr)./(1/tau-obj.cumulativeShamDecorr))/tau;
-                    obj.cumulativeDecorr(obj.cumulativeDecorr <0) = realmin;
-                    obj.cumulativeDecorrROI = obj.cumulativeDecorr.*obj.ROIMap;
-                    obj.decorrAverageSeries(obj.numDataSets) = sum(obj.cumulativeDecorr(:))/numel(obj.cumulativeDecorr(:));
-                    obj.decorrAverageSeriesROI(obj.numDataSets) = sum(obj.cumulativeDecorrROI(:))/sum(obj.ROIMap(:));
-                else
-                    obj.cumulativeDecorr = max(obj.cumulativeDecorr,tempDec);
-                    tempDec = ((obj.cumulativeDecorr - obj.cumulativeShamDecorr)./(1/tau-obj.cumulativeShamDecorr))/tau;
-                    tempDec(tempDec<0)=realmin;
-                    obj.cumulativeDecorr = max(obj.cumulativeDecorr,tempDec);
-                    obj.cumulativeDecorr(obj.cumulativeDecorr <0)=realmin;
-                    obj.cumulativeDecorrROI = max(obj.cumulativeDecorrROI,obj.cumulativeDecorr.*obj.ROIMap);
-                    obj.decorrAverageSeries(obj.numDataSets) = sum(obj.cumulativeDecorr(:))/numel(obj.cumulativeDecorr(:));
-                    obj.decorrAverageSeriesROI(obj.numDataSets) = sum(obj.cumulativeDecorrROI(:))/sum(obj.ROIMap(:));
-                end
-                if(isempty(obj.ultrasoundDataSeries))
-                    obj.ultrasoundDataSeries = dataObj;
-                else
-                    obj.ultrasoundDataSeries = [obj.ultrasoundDataSeries,dataObj]; 
-                end
-                obj.numDataSets = obj.numDataSets +1;
-                returnVal = 1;
-            else
-                returnVal = -1;  
-            end
-        end
+       
+        
         function nextDataSetFolder = getNextDataSetFolder_c(obj)
             % getNextDataSetFolder_c: checks the target directory for the next data set
             %
@@ -649,49 +545,6 @@ classdef ExperimentClass < handle
                 binOut = ~arrayfun(@(x) strcmp(x.name,invalidFolders(invalidFoldN)),folderDir)' & binOut;
             end
             dataSetList = folderDir(binOut); 
-        end
-        
-        function obj = addNextDataSetViaFilename(obj, thisFileName) 
-            % addNextDataSetViaFilename2: Adds next data set to object
-            % given a filename
-            %
-            % Function to be called by another function which provides the
-            % target filename. 
-            %
-            % Usage:
-            %   obj = addNextDataSetViaFilename2(obj, thisFileName)
-            %       inputs:
-            %         thisFileName: The filename to extract data from.
-            %         Should be a pcmr file
-            %       outputs:
-            %         Obj: Updated object
-            Dm = read_lbdump(thisFileName);
-            obj.rmin = 0;
-            obj.rmax = (1/Dm.Info.NumSamplesPerMm)* Dm.Info.NumRangeSamples;
-            try 
-                obj.frameRate = Dm.Info.framerate;
-                obj.phiRange = Dm.Info.phiRange;
-                obj.thetaRange = Dm.Info.thetaRange;
-                obj.thetamax = pi/360*obj.thetaRange;
-                obj.thetamin = -obj.thetamax;
-                obj.phimax = pi/360*obj.phiRange;
-                obj.phimin = -obj.phimax;
-            catch
-                disp('Could not read additional info file');
-            end
-            tempDataSet = USDataClass(Dm.data,Dm.startTime, Dm.Info,obj.rmin,obj.rmax,obj.thetamin,obj.thetamax,obj.phimin,obj.phimax,obj.voxelStepCart,obj.sigma,obj.interFrameTime);
-            tempDataSet.scanConv_Frust();
-            
-            tempDataSet.compute3DDecorr(); 
-            tempDataSet.decorrThresh = obj.decorrThresh;
-            
-            if(isempty(obj.cumulativeDecorr))
-                obj.cumulativeDecorr = tempDataSet.decorr;
-            else
-                obj.cumulativeDecorr = max(obj.cumulativeDecorr,tempDataSet.decorr);
-            end
-            obj.decorrSumSeries(obj.numVolumes) = sum(obj.cumulativeDecorr(:)/numel(obj.cumlativeDecorr));
-            obj.ultrasoundDataSeries = [obj.ultrasoundDataSeries tempDataSet];
         end
         
         function obj = initDataFolderGUI(obj)
