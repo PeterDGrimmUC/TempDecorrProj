@@ -258,7 +258,7 @@ classdef ExperimentClass < handle
             
             obj.IBSGeoSet=true;
         end
-        function getInitDataSet_c(obj)
+       function getInitDataSet_c(obj)
             % getInitDataSet: Get initial dataset from folder
             %
             % Selects the first data set in the target folder to use as an initial dataset, geometry will be calibrated based on this given volume
@@ -299,7 +299,7 @@ classdef ExperimentClass < handle
             obj.fileLUT{end+1}=nextDataSet.name;
         end
         
-        function outDataSet = parseDataFromDir_c(obj,thisFileName)
+       function outDataSet = parseDataFromDir_c(obj,thisFileName)
             % parseDataFromDir_c: parses a data set from a given folder
             %
             % Parses data from the siemens SC2000 scanner in a given folder, given as a parameter in the function.
@@ -332,7 +332,7 @@ classdef ExperimentClass < handle
             end
         end
         
-        function defineROI(obj) 
+       function defineROI(obj) 
             % defineROI: Use internal information to create ROI mask
             %
             % Uses information about the volume geometry as well as information about the ROI to create a vector of points within the ROI.
@@ -352,53 +352,16 @@ classdef ExperimentClass < handle
             obj.ROIVoxelNum = sum(obj.ROIMap(:)); 
             obj.initDataSet.ROIMap = obj.ROIMap;
             obj.initDataSet.compute3DDecorr_Freq();
-        end
-       function returnVal = addNextShamDataSet_c(obj)
-            % addNextRawData_set_c: Use the c program to add the next data set in the target folder to the object
-            %
-            % Checks form, adds and processes the next data set (chronologically) to the object. Uses USDataClass built in methods to handle processing, as well as the ROI defined in the ExperimentClass object. 
-            %
-            % Usage:
-            %   returnVal = FaddaddNextRawDataSet_c(obj)
-            %             inputs:
-            %                None
-            %             outputs:
-            %                None
-            
-            nextDataSet = obj.getNextDataSetFolder_c();
-            if obj.numShamDataSets == []
-                obj.numShamDataSets = 1; 
-            end
-            if(~isempty(nextDataSet))
-                dataFolderPath = fullfile(obj.dataFolder,nextDataSet.name);
-                dataObj = obj.parseDataFromDir_c(fullfile(dataFolderPath,obj.defaultDataFileName));
-                dataObj.folderName = dataFolderPath;
-                fclose all;
-                obj.fileLUT{end+1}=nextDataSet.name;
-                dataObj.scanConv_apply_c(obj.scanConvLookup);
-                dataObj.ROIMap = obj.ROIMap;
-                dataObj.compute3DDecorr_arg(struct('time',false,'global',false,'local',true)); 
-                dataObj.decorrThresh = obj.decorrThresh;
-                if(isempty(obj.cumulativeShamDecorr))
-                    obj.cumulativeShamDecorr = dataObj.decorr;
-                else
-                    obj.cumulativeShamDecorr = max(obj.cumulativeShamDecorr,dataObj.decorr);
-                end
-                if(isempty(obj.ultrasoundShamDataSeries))
-                    obj.ultrasoundShamDataSeries = dataObj;
-                else
-                    obj.ultrasoundShamDataSeries = [obj.ultrasoundShamDataSeries,dataObj]; 
-                end
-                obj.numShamDataSets = obj.numShamDataSets +1;
-                returnVal = 1;
-            else
-                returnVal = -1;  
-            end
        end
        
        function updateDecorrSeries(obj,dataObj)
             decorrIn=dataObj.getFormattedDec(struct('time',true,'local',obj.decStruct.local,'global',obj.decStruct.global));
             obj.updateCumulativeDecorr(decorrIn); 
+       end
+       
+       function updateShamDecorrSeries(obj,dataObj)
+            decorrIn=dataObj.getFormattedDec(struct('time',false,'local',true,'global',false));
+            obj.updateCumulativeShamDecorr(decorrIn); 
        end
        
        function updateMotionCorrectedDecorrSeries(obj,dataObj)
@@ -407,6 +370,7 @@ classdef ExperimentClass < handle
             correctedInstDec=dataObj.motionCorrectDecorr(instDecLocalNorm, obj.cumulativeShamDecorr)/tau;
             obj.updateCumulativeDecorr(correctedInstDec);
        end
+       
        function updateCumulativeDecorr(obj,newDecorr)
             if(isempty(obj.cumulativeDecorr))
                 obj.cumulativeDecorr = newDecorr;
@@ -420,6 +384,16 @@ classdef ExperimentClass < handle
                 obj.decorrAverageSeries(obj.numDataSets) = sum(obj.cumulativeDecorr(:))/numel(obj.cumulativeDecorr(:));
                 obj.decorrAverageSeriesROI(obj.numDataSets) = sum(obj.cumulativeDecorrROI(:))/sum(obj.ROIMap(:));
                 obj.cumdecorrAverageSeriesROI(obj.numDataSets)=mean(obj.cumulativeDecorr(obj.ROIMap));
+            end 
+       end
+       
+       function updateCumulativeShamDecorr(obj,newDecorr)
+            if(isempty(obj.cumulativeShamDecorr))
+                obj.cumulativeShamDecorr = newDecorr;
+                obj.cumulativeShamDecorrROI = obj.cumulativeDecorr.*obj.ROIMap;
+            else
+                obj.cumulativeShamDecorr = max(obj.cumulativeDecorr,newDecorr);
+                obj.cumulativeShamDecorrROI = max(obj.cumulativeDecorrROI,obj.cumulativeDecorr.*obj.ROIMap);
             end 
        end
        function returnVal = addNextRawDataSet_c(obj)
@@ -484,7 +458,7 @@ classdef ExperimentClass < handle
                 dataObj.scanConv_apply_c(obj.scanConvLookup);
                 dataObj.ROIMap = obj.ROIMap;
                 dataObj.compute3DDecorr();
-                obj.updateDecorrSeries(dataObj);
+                obj.updateMotionCorrectedDecorrSeries(dataObj);
                 if(isempty(obj.ultrasoundDataSeries))
                     obj.ultrasoundDataSeries = dataObj;
                 else
@@ -496,9 +470,45 @@ classdef ExperimentClass < handle
                 returnVal = -1;
             end
        end
-       
-        
-        function nextDataSetFolder = getNextDataSetFolder_c(obj)
+       function returnVal = addNextShamDataSet_c(obj)
+            % addNextRawData_set_c: Use the c program to add the next data set in the target folder to the object
+            %
+            % Checks form, adds and processes the next data set (chronologically) to the object. Uses USDataClass built in methods to handle processing, as well as the ROI defined in the ExperimentClass object. 
+            %
+            % Usage:
+            %   returnVal = FaddaddNextRawDataSet_c(obj)
+            %             inputs:
+            %                None
+            %             outputs:
+            %                None
+            
+            nextDataSet = obj.getNextDataSetFolder_c();
+            if obj.numShamDataSets == []
+                obj.numShamDataSets = 1; 
+            end
+            if(~isempty(nextDataSet))
+                dataFolderPath = fullfile(obj.dataFolder,nextDataSet.name);
+                dataObj = obj.parseDataFromDir_c(fullfile(dataFolderPath,obj.defaultDataFileName));
+                dataObj.folderName = dataFolderPath;
+                fclose all;
+                obj.fileLUT{end+1}=nextDataSet.name;
+                dataObj.scanConv_apply_c(obj.scanConvLookup);
+                dataObj.ROIMap = obj.ROIMap;
+                dataObj.compute3DDecorr(); 
+                dataObj.decorrThresh = obj.decorrThresh;
+                obj.updateDecorrSeries(dataObj);
+                if(isempty(obj.ultrasoundShamDataSeries))
+                    obj.ultrasoundShamDataSeries = dataObj;
+                else
+                    obj.ultrasoundShamDataSeries = [obj.ultrasoundShamDataSeries,dataObj]; 
+                end
+                obj.numShamDataSets = obj.numShamDataSets +1;
+                returnVal = 1;
+            else
+                returnVal = -1;  
+            end
+       end
+       function nextDataSetFolder = getNextDataSetFolder_c(obj)
             % getNextDataSetFolder_c: checks the target directory for the next data set
             %
             % Checks the directory for unprocessed data sets, returns the location of the next valid data set folder
@@ -701,8 +711,7 @@ classdef ExperimentClass < handle
             %       None
             fclose(obj.outSerialObj); 
         end
-
-        
+  
         function obj = setRFDataArray(obj,rfDataArr)
             %  setRFDataArray: Set the variable 'rfDataArray' (legacy)
             %

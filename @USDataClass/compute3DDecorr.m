@@ -1,6 +1,7 @@
-function compute3DDecorr( obj, normParam)
+function compute3DDecorr( obj)
     %% COMPUTE3DDECORR Summary of this function goes here
     validPts=obj.rawData_cart(:,:,:,1)~=0;
+    obj.frustumPts=validPts;
     if ~isempty(obj.IBSrMin) && ~isempty(obj.IBSrMax)        
         validPts=validPts&...
              ndgrid(obj.z_range>obj.IBSrMin&obj.z_range<obj.IBSrMax,...
@@ -62,5 +63,7 @@ function compute3DDecorr( obj, normParam)
         B2ValidIBS = obj.B2(validPts);
         obj.B2_avg = mean(B2ValidIBS(:));
         obj.R01 = (obj.autocorr01(:,:,:,currVolume)).^2;
+        obj.R01(~obj.frustumPts)=realmin;
+        obj.B2(~obj.frustumPts)=realmin;
     end
 end

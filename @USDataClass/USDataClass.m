@@ -84,6 +84,7 @@ classdef USDataClass < handle
         B2;
         B2_avg;
         tau;
+        frustumPts;
         R01;
     end
     
@@ -213,12 +214,16 @@ classdef USDataClass < handle
                 denTerm = denTerm * obj.tau;
             end
             obj.decorr = numTerm*(obj.B2-obj.R01)./denTerm;
+            obj.decorr(isnan(obj.decorr))=realmin;
+            obj.decorr(obj.decorr<=0)=realmin;
             outDec=obj.decorr; 
         end
         function outDecCorrected=motionCorrectDecorr(obj, decorrIn, shamDec)
             % shamDec is local norm cumulative sham decorr (not per ms)
             B = (obj.B2 + obj.B2_avg)./(2*obj.B2);
             D_inter = (decorrIn - shamDec)./(1-shamDec); % where obj.decorr is inst.
+            D_inter(D_inter<=0)=realmin;
+            D_inter(isnan(D_inter))=realmin;
             outDecCorrected=D_inter./B;
         end
 
