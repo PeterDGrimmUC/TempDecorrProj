@@ -366,8 +366,8 @@ classdef ExperimentClass < handle
        
        function updateMotionCorrectedDecorrSeries(obj,dataObj)
             tau=dataObj.tau;
-            instDecLocalNorm=dataObj.getFormattedDec(struct('time',false,'global',false,'local',false));
-            correctedInstDec=dataObj.motionCorrectDecorr(instDecLocalNorm, obj.cumulativeShamDecorr)/tau;
+            %instDecLocalNorm=dataObj.getFormattedDec(struct('time',false,'global',false,'local',false));
+            correctedInstDec=dataObj.motionCorrectDecorrNew(obj.cumulativeShamDecorr)/tau;
             obj.updateCumulativeDecorr(correctedInstDec);
        end
        
@@ -838,6 +838,9 @@ classdef ExperimentClass < handle
                 temp = flipdim(temp,3); % flip dim from top to bottm -> bottom to top 
                 volOut(:,:,:,j) = temp; 
             end
+        end
+        function decorrMot=motionCorrectDecorr(decInstLoc, decShamCumLoc)
+            
         end
     end
 end
