@@ -210,21 +210,24 @@ classdef USDataClass < handle
             else
                 numTerm=1;
             end
-            if normParam.time
-                denTerm = denTerm * obj.tau;
-            end
-            obj.decorr = numTerm*(obj.B2-obj.R01)./denTerm;
-            obj.decorr(isnan(obj.decorr))=realmin;
-            obj.decorr(obj.decorr<=0)=realmin;
-            outDec=obj.decorr; 
+            outDec= numTerm*(obj.B2-obj.R01)./denTerm;
+            outDec(isnan(outDec))=realmin;
+            outDec(outDec<=0)=realmin; 
         end
-        function outDecCorrected=motionCorrectDecorr(obj, decorrIn, shamDec)
+        function outDecCorrected=motionCorrectDecorrOld(obj, decorrIn, shamDec)
             % shamDec is local norm cumulative sham decorr (not per ms)
             B = (obj.B2 + obj.B2_avg)./(2*obj.B2);
             D_inter = (decorrIn - shamDec)./(1-shamDec); % where obj.decorr is inst.
             D_inter(D_inter<=0)=realmin;
             D_inter(isnan(D_inter))=realmin;
             outDecCorrected=D_inter./B;
+        end
+        function outDecCorrected=getMotionCorrectedDecorr(obj, shamDec)
+            % shamDec is local norm cumulative sham decorr (not per ms)
+            localDec=obj.getFormattedDec(struct('global',false,'local',true,'time',false));
+            C=(obj.B2)./(obj.B2 + obj.B2_avg);
+            outDecCorrected=C.* (localDec-shamDec);
+            outDecCorrected(outDecCorrected<0)=realmin;
         end
 
     end

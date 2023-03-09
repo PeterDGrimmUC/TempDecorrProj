@@ -5,10 +5,12 @@
 % Each 'IQData.q..' folder should be in another enclosing folder, which is where you should point the script toward when it asks you to select a folder
 % After it processes a folder it will move it to the complete folder
 % to rerun the script you have to move the folders back to their original location outside of the 'complete' folder. 
+lambdas
 %% Init class
 experiment = ExperimentClass(); % Create experiment class object
-%experiment.initDataFolderGUI(); % set target folder, should be one directory above each individual output folder from the scanner
-experiment.initDataFolder('/Users/petergrimm/Documents/EchoDecorrData/Other data/in-vivo/2022-8-24_experiment_4');
+experiment.initDataFolderGUI(); % set target folder, should be one directory above each individual output folder from the scanner
+%targFolder='/Users/petergrimm/Documents/EchoDecorrData/Other data/in-vivo/InVivo_pig/2022-3-18_experiment_5';
+%experiment.initDataFolder(targFolder)
 % Get geometry info
 % Manually set
 sigma = 3; 
@@ -46,13 +48,25 @@ depthR_in = 0;
 experiment.setIBSparam(-1000, 60, -30,30,-30,30)
 experiment.setROIParams(elevLoc,azimLoc,depthLoc,elevR,azimR,depthR,elevR_in,azimR_in,depthR_in,alphaAng,gammaAng,betaAng);
 
-%% process remaining data
-% run this function in a loop, it will check for a new data set and add it
-% once there are no folders remaining, it returns -1
-while(experiment.newDataSetReady())
-    experiment.nextDataSet();
+%%
+for i = 1:5
+    experiment.addNextShamDataSet_c()
 end
-%% final output
-% this version cleans up the final output to match room coordinates after completion
-% the newer version does this at the beginning instead
-finalOutput = experiment.saveObj();
+%%
+while experiment.addNextRawDataSet_c() ~= -1;end
+%%
+cumShamDec=mapreduce(@(x,y) max(x,y), map(@(x) x.getFormattedDec(struct('time', false, 'local',true, 'global',false)) ,experiment.ultrasoundShamDataSeries));
+%%
+frustumPts=experiment.ultrasoundShamDataSeries(1).frustumPts;
+%%
+instDec_cell=map(@(x) x.getFormattedDec(struct('local',true,'global',false, 'time',true)),experiment.ultrasoundDataSeries);
+B2_cell=map(@(x) x.B2,experiment.ultrasoundDataSeries);
+B2_avg_cell=map(@(x) x.B2_avg,experiment.ultrasoundDataSeries);
+
+B = map(@(x) (B2_cell{x}+B2_avg_cell{x})./(2*B2_cell{x}),1:length(B2_cell));
+tau=experiment.ultrasoundDataSeries(1).tau;
+%%
+corrDec = map(@(x) (instDec_cell{x}-cumShamDec)./(1-cumShamDec)./B{x}/tau, 1:length(B2_cell));
+%%
+cumDecC=mapreduce(@(x,y) max(x,y), corrDec);
+for i = 1:size(cumDecC,3); imagesc(real(log10(cumDecC(:,:,i))), [-6,0]); drawnow; pause(.1); end

@@ -5,10 +5,11 @@
 % Each 'IQData.q..' folder should be in another enclosing folder, which is where you should point the script toward when it asks you to select a folder
 % After it processes a folder it will move it to the complete folder
 % to rerun the script you have to move the folders back to their original location outside of the 'complete' folder. 
+lambdas;
 %% Init class
 experiment = ExperimentClass(); % Create experiment class object
 %experiment.initDataFolderGUI(); % set target folder, should be one directory above each individual output folder from the scanner
-experiment.initDataFolder('/Users/petergrimm/Documents/EchoDecorrData/Other data/in-vivo/2022-8-24_experiment_4');
+experiment.initDataFolder('/Users/petergrimm/Documents/EchoDecorrData/Other data/in-vivo/2022-8-24_experiment_4')
 % Get geometry info
 % Manually set
 sigma = 3; 
@@ -45,13 +46,23 @@ depthR_in = 0;
 %%
 experiment.setIBSparam(-1000, 60, -30,30,-30,30)
 experiment.setROIParams(elevLoc,azimLoc,depthLoc,elevR,azimR,depthR,elevR_in,azimR_in,depthR_in,alphaAng,gammaAng,betaAng);
-
-%% process remaining data
-% run this function in a loop, it will check for a new data set and add it
-% once there are no folders remaining, it returns -1
-while(experiment.newDataSetReady())
-    experiment.nextDataSet();
+%%
+numSham = 3; 
+for i =1:numSham
+    if ~isempty(experiment.getWaitingDataSets)
+        experiment.nextShamDataSet
+    end
 end
+experiment.initMotionCorrection()
+%%
+while ~isempty(experiment.getWaitingDataSets)
+    experiment.nextDataSet()
+    %cumTest=mapreduce(@(x,y) max(x,y), map(@(x)x.getFormattedDec(struct('local',true,'global',true)), experiment.ultrasoundDataSeries));
+    %assert(all(cumTest(:)==experiment.cumulativeDecorr(:)))
+end
+%%
+cumTest=mapreduce(@(x,y) max(x,y), map(@(x)x.getFormattedDec(struct('local',true,'global',true)), experiment.ultrasoundDataSeries));
+
 %% final output
 % this version cleans up the final output to match room coordinates after completion
 % the newer version does this at the beginning instead

@@ -7,8 +7,7 @@
 % to rerun the script you have to move the folders back to their original location outside of the 'complete' folder. 
 %% Init class
 experiment = ExperimentClass(); % Create experiment class object
-%experiment.initDataFolderGUI(); % set target folder, should be one directory above each individual output folder from the scanner
-experiment.initDataFolder('/Users/petergrimm/Documents/EchoDecorrData/Other data/in-vivo/2022-8-24_experiment_4');
+experiment.initDataFolderGUI(); % set target folder, should be one directory above each individual output folder from the scanner
 % Get geometry info
 % Manually set
 sigma = 3; 
@@ -50,7 +49,7 @@ experiment.setROIParams(elevLoc,azimLoc,depthLoc,elevR,azimR,depthR,elevR_in,azi
 % run this function in a loop, it will check for a new data set and add it
 % once there are no folders remaining, it returns -1
 while(experiment.newDataSetReady())
-    experiment.nextDataSet();
+    experiment.nextDataSet()
 end
 %% final output
 % this version cleans up the final output to match room coordinates after completion
