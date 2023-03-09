@@ -301,7 +301,7 @@ classdef ExperimentClass < handle
             finalGrid = zeros(size(xGrid));
             finalGrid(validPoints) = 1;
             obj.ROIMap = logical(finalGrid); 
-            obj.initDataSet.compute3DDecorr_Freq();
+            obj.initDataSet.compute3DDecorr();
         end
        
         function updateDecorrSeries(obj,dataObj)
